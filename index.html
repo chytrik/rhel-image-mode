@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="cs">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -522,10 +522,10 @@ dialog kbd{
 .langwrap{position:relative;display:inline-flex;align-items:center}
 .langsel{
   appearance:none;-webkit-appearance:none;
-  font:inherit;font-size:.8rem;font-weight:700;font-family:var(--font-mono);
+  font:inherit;font-size:.84rem;font-weight:600;font-family:var(--font-body);
   color:var(--ink);background:var(--paper);
   border:1px solid var(--rule);border-radius:18px;
-  padding:7px 30px 7px 13px;cursor:pointer;line-height:1;
+  padding:5px 30px 5px 13px;cursor:pointer;line-height:1.5;
 }
 .langsel:hover{background:var(--paper-sunk)}
 .langwrap::after{
@@ -535,7 +535,7 @@ dialog kbd{
 }
 .langsel option{background:var(--paper);color:var(--ink)}
 @media (max-width:860px){
-  .langsel{padding:6px 26px 6px 10px;font-size:.74rem}
+  .langsel{padding:4px 26px 4px 10px;font-size:.78rem}
   .langwrap::after{right:9px}
 }
 @media print{.langwrap{display:none!important}}
@@ -2139,7 +2139,7 @@ I18N.en = {
 "use strict";
 
 var LANGS = ["cs","sk","pl","ro","en"];
-var DEF = "en";
+var DEF = "cs";
 var L = null, lang = DEF, current = 0;
 var LAST = 7;
 
@@ -2151,19 +2151,27 @@ function t(k){
   }
   return (v === undefined || v === null) ? "" : v;
 }
+/* Pořadí: ?lang= v odkazu → volba uložená dřív → čeština. */
 function pickLang(){
-  var q = new URLSearchParams(location.search).get("lang");
-  if(q && LANGS.indexOf(q) >= 0) return q;
+  try{
+    var q = new URLSearchParams(location.search).get("lang");
+    if(q && LANGS.indexOf(q) >= 0) return q;
+  }catch(e){}
   try{
     var s = localStorage.getItem("rhelim-lang");
     if(s && LANGS.indexOf(s) >= 0) return s;
   }catch(e){}
-  var navs = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || ""];
-  for(var i=0;i<navs.length;i++){
-    var code = String(navs[i]).toLowerCase().split("-")[0];
-    if(LANGS.indexOf(code) >= 0) return code;
-  }
   return DEF;
+}
+
+/* Úprava adresy bez reloadu. V náhledech (iframe srcdoc, about:blank)
+   history API adresu měnit nesmí — tam se úprava tiše vynechá. */
+function canEditUrl(){
+  return /^(https?|file):$/.test(location.protocol);
+}
+function setUrl(search, hash){
+  if(!canEditUrl()) return;
+  try{ history.replaceState(null, "", location.pathname + search + hash); }catch(e){}
 }
 
 /* ---------- Data tables driven by dictionary ---------- */
@@ -2286,9 +2294,7 @@ function show(n, push){
   buildPageNav(n);
   if(push !== false){
     var h = n === 0 ? "#intro" : "#ch-" + n;
-    if(location.hash !== h){
-      history.replaceState(null, "", location.pathname + location.search + h);
-    }
+    if(location.hash !== h) setUrl(location.search, h);
   }
   window.scrollTo(0,0);
   closeMenu();
@@ -2560,9 +2566,12 @@ document.querySelector(".fslist").addEventListener("click", function(e){
 document.getElementById("langsel").addEventListener("change", function(){
   var v = this.value;
   applyLang(v, current);
-  var u = new URL(location.href);
-  u.searchParams.set("lang", v);
-  history.replaceState(null, "", u.pathname + u.search + (current === 0 ? "#intro" : "#ch-"+current));
+  if(canEditUrl()){
+    var params = new URLSearchParams(location.search);
+    if(v === DEF) params.delete("lang"); else params.set("lang", v);
+    var qs = params.toString();
+    setUrl(qs ? "?" + qs : "", current === 0 ? "#intro" : "#ch-" + current);
+  }
 });
 
 /* ---------- Tisk ---------- */
