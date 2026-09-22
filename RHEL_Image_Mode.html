@@ -1,0 +1,1645 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RHEL Image Mode</title>
+<style>
+/* ---------- Tokeny ---------- */
+:root{
+  --font-display:"Red Hat Display","Red Hat Text",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-body:"Red Hat Text",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+
+  --paper:#ffffff;
+  --paper-alt:#f6f6f6;
+  --paper-sunk:#efefef;
+  --ink:#151515;
+  --ink-soft:#4d5258;
+  --rule:#d6d6d6;
+  --rule-soft:#e8e8e8;
+  --red:#ee0000;
+  --red-ink:#cc0000;
+
+  --ro:#6a6e73;
+  --rw:#0066cc;
+  --merge:#5e40be;
+  --temp:#b35c00;
+  --warn:#c9190b;
+  --ok:#3e8635;
+
+  --code-bg:#1b1d21;
+  --code-ink:#e3e3e3;
+
+  --measure:68ch;
+  --nav:286px;
+}
+:root[data-theme="dark"]{
+  --paper:#161719;
+  --paper-alt:#1f2125;
+  --paper-sunk:#26282c;
+  --ink:#ededed;
+  --ink-soft:#b3b7bb;
+  --rule:#3c4045;
+  --rule-soft:#2d3034;
+  --red:#ff4d4d;
+  --red-ink:#ff6b6b;
+
+  --ro:#a9adb2;
+  --rw:#5ab3ff;
+  --merge:#a68bff;
+  --temp:#f0ab00;
+  --warn:#ff6a5e;
+  --ok:#7cc65b;
+
+  --code-bg:#0e0f11;
+  --code-ink:#e3e3e3;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#161719; --paper-alt:#1f2125; --paper-sunk:#26282c;
+    --ink:#ededed; --ink-soft:#b3b7bb; --rule:#3c4045; --rule-soft:#2d3034;
+    --red:#ff4d4d; --red-ink:#ff6b6b;
+    --ro:#a9adb2; --rw:#5ab3ff; --merge:#a68bff; --temp:#f0ab00; --warn:#ff6a5e; --ok:#7cc65b;
+    --code-bg:#0e0f11; --code-ink:#e3e3e3;
+  }
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+
+body{
+  font-family:var(--font-body);
+  font-size:17px;
+  line-height:1.65;
+  color:var(--ink);
+  background:var(--paper);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ---------- Layout ---------- */
+.shell{display:flex;min-height:100vh}
+
+.sidebar{
+  width:var(--nav);
+  flex:0 0 var(--nav);
+  border-right:1px solid var(--rule);
+  background:var(--paper-alt);
+  position:sticky;
+  top:0;
+  height:100vh;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+}
+.brandbtn{
+  display:block;width:100%;text-align:left;
+  background:none;border:0;border-bottom:1px solid var(--rule);
+  padding:22px 24px 18px;cursor:pointer;color:inherit;font:inherit;
+}
+.brandbtn .bt{font-family:var(--font-display);font-weight:800;font-size:1.22rem;letter-spacing:-.01em;line-height:1.2}
+.brandbtn .bs{font-size:.8rem;color:var(--ink-soft);margin-top:3px}
+.brandbtn:hover .bt{color:var(--red)}
+
+.tocwrap{flex:1;padding:14px 0}
+.toc{list-style:none;margin:0;padding:0}
+.toc button{
+  display:flex;gap:12px;align-items:baseline;
+  width:100%;text-align:left;background:none;border:0;
+  border-left:3px solid transparent;
+  padding:9px 22px 9px 21px;cursor:pointer;
+  font:inherit;font-size:.9rem;line-height:1.35;color:var(--ink-soft);
+}
+.toc button:hover{color:var(--ink);background:var(--paper)}
+.toc button[aria-current="true"]{color:var(--ink);border-left-color:var(--red);font-weight:700;background:var(--paper)}
+.toc .n{font-family:var(--font-mono);font-size:.76rem;color:var(--red);flex:0 0 1.1em}
+.sidefoot{padding:16px 24px 22px;border-top:1px solid var(--rule);font-size:.76rem;color:var(--ink-soft);line-height:1.5}
+
+.stage{flex:1;min-width:0;position:relative}
+.topbar{
+  position:sticky;top:0;z-index:30;
+  display:flex;align-items:center;gap:10px;
+  padding:10px 32px;
+  background:color-mix(in srgb,var(--paper) 88%,transparent);
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--rule-soft);
+}
+.topbar .spacer{flex:1}
+.crumb{font-size:.82rem;color:var(--ink-soft);font-family:var(--font-mono);background:none;border:0;padding:4px 2px;cursor:pointer;text-align:left}
+.crumb:hover{color:var(--ink)}
+.crumb[data-home="1"]{cursor:default}
+.crumb[data-home="1"]:hover{color:var(--ink-soft)}
+.iconbtn{
+  width:36px;height:36px;border-radius:50%;
+  border:1px solid var(--rule);background:var(--paper);color:var(--ink);
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
+}
+.iconbtn:hover{background:var(--paper-sunk)}
+.iconbtn svg{width:18px;height:18px;fill:currentColor}
+.menubtn{display:none}
+
+.progress{height:3px;background:var(--rule-soft)}
+.progress i{display:block;height:100%;background:var(--red);width:0;transition:width .35s ease}
+
+.page{padding:44px 32px 96px;max-width:1180px;margin:0 auto}
+.chapter{display:none}
+.chapter.on{display:block}
+.prose{max-width:var(--measure)}
+
+/* ---------- Typografie ---------- */
+h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.015em;margin:0}
+h1{font-size:2.6rem;font-weight:800;line-height:1.1}
+.chapter h2{font-size:2rem;font-weight:800;line-height:1.18;margin-bottom:10px}
+h3{font-size:1.22rem;font-weight:700;margin:34px 0 10px}
+h4{font-size:1rem;font-weight:700;margin:0 0 6px}
+p{margin:0 0 15px}
+.lede{font-size:1.14rem;line-height:1.55;color:var(--ink-soft);max-width:var(--measure);margin-bottom:30px}
+.eyebrow{font-family:var(--font-mono);font-size:.8rem;color:var(--red);margin-bottom:10px}
+ul,ol{margin:0 0 16px;padding-left:1.3em}
+li{margin-bottom:7px}
+strong{font-weight:700}
+code{font-family:var(--font-mono);font-size:.88em;background:var(--paper-sunk);padding:.1em .34em;border-radius:3px;word-break:break-word}
+a{color:var(--red-ink)}
+hr.sep{border:0;border-top:1px solid var(--rule-soft);margin:40px 0}
+
+/* ---------- Poznámka ---------- */
+.note{
+  border-left:3px solid var(--rule);
+  background:var(--paper-alt);
+  padding:16px 20px;margin:24px 0;border-radius:0 4px 4px 0;
+  max-width:var(--measure);font-size:.95rem;
+}
+.note h4{font-size:.82rem;font-family:var(--font-mono);font-weight:600;color:var(--ink-soft);margin-bottom:7px}
+.note p:last-child{margin-bottom:0}
+.note.flag{border-left-color:var(--red)}
+.note.flag h4{color:var(--red)}
+.note.care{border-left-color:var(--temp)}
+.note.care h4{color:var(--temp)}
+
+/* ---------- Kód ---------- */
+pre{
+  background:var(--code-bg);color:var(--code-ink);
+  padding:16px 18px;border-radius:6px;overflow-x:auto;
+  font-family:var(--font-mono);font-size:.82rem;line-height:1.6;
+  position:relative;margin:0 0 16px;
+}
+pre code{background:none;padding:0;font-size:inherit;color:inherit}
+.copy{
+  position:absolute;top:8px;right:8px;
+  background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);
+  border-radius:4px;font-size:.72rem;padding:3px 9px;cursor:pointer;font-family:var(--font-body);
+}
+.copy:hover{background:rgba(255,255,255,.2)}
+.k{color:#6cb6ff}.s{color:#e5a06a}.c{color:#8fbc8f;font-style:italic}.o{color:#c8c8c8}
+
+/* ---------- Tabulky ---------- */
+.tbl{width:100%;border-collapse:collapse;margin:0 0 18px;font-size:.92rem}
+.tbl th,.tbl td{padding:11px 13px;border-bottom:1px solid var(--rule-soft);text-align:left;vertical-align:top}
+.tbl thead th{font-family:var(--font-display);font-weight:700;border-bottom:2px solid var(--rule);font-size:.9rem}
+.tbl tbody tr:hover{background:var(--paper-alt)}
+.tbl td:first-child{font-weight:700;width:20%}
+.tbl.cmp td:first-child{width:18%}
+.hl{background:color-mix(in srgb,var(--red) 7%,transparent)}
+.scrollx{overflow-x:auto;margin-bottom:18px}
+
+/* ---------- Štítky ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 26px}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--rule);border-radius:16px;
+  padding:4px 12px;font-size:.8rem;background:var(--paper-alt);
+}
+.chip svg{width:13px;height:13px;fill:var(--ok)}
+.tp{border-color:var(--temp);color:var(--temp);font-weight:600;background:none}
+
+.tag{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:4px;font-size:.78rem;font-weight:700;color:#fff}
+.t-ro{background:var(--ro)}.t-rw{background:var(--rw)}.t-mg{background:var(--merge)}
+.t-tp{background:var(--temp)}.t-wn{background:var(--warn)}
+:root[data-theme="dark"] .tag,
+:root:not([data-theme="light"]) .tag{color:#151515}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]) .tag{color:#fff}}
+
+/* ---------- Mřížky / karty ---------- */
+.grid{display:grid;gap:18px;margin-bottom:22px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.card{border:1px solid var(--rule);border-radius:6px;padding:18px 20px;background:var(--paper)}
+.card p:last-child{margin-bottom:0}
+.card .ci{width:22px;height:22px;fill:var(--red);margin-bottom:8px}
+.card.accent{border-color:var(--red)}
+
+/* ---------- Taby ---------- */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--rule);margin-bottom:26px;flex-wrap:wrap}
+.tabs button{
+  background:none;border:1px solid transparent;border-bottom:0;
+  padding:10px 18px;cursor:pointer;font:inherit;font-size:.92rem;font-weight:600;
+  color:var(--ink-soft);border-radius:5px 5px 0 0;margin-bottom:-1px;
+}
+.tabs button:hover{color:var(--ink)}
+.tabs button[aria-selected="true"]{color:var(--ink);background:var(--paper);border-color:var(--rule);border-bottom:1px solid var(--paper)}
+.panel{display:none}
+.panel.on{display:block}
+
+/* ---------- Kap. 1: tok ---------- */
+.flowbox{border:1px solid var(--rule);border-radius:6px;padding:22px 18px 16px;background:var(--paper-alt);margin-bottom:22px}
+.flowsvg{width:100%;height:auto;display:block}
+.fnode rect{fill:var(--paper);stroke:var(--rule);stroke-width:1.5;transition:fill .45s,stroke .45s}
+.fnode text{font-family:var(--font-display);font-size:12px;font-weight:700;fill:var(--ink-soft);text-anchor:middle;transition:fill .45s}
+.fnode tspan.sub{font-size:9.5px;font-weight:400;font-family:var(--font-body)}
+.fnode.lit rect{fill:var(--red);stroke:var(--red)}
+.fnode.lit text{fill:#fff}
+.farr{stroke:var(--rule);stroke-width:1.5;opacity:.35;transition:opacity .45s,stroke .45s}
+.farr.lit{opacity:1;stroke:var(--red)}
+.fzone{fill:none;stroke:var(--rule);stroke-width:1;stroke-dasharray:4 4}
+.fzlabel{font-family:var(--font-mono);font-size:9.5px;fill:var(--ink-soft)}
+.flowbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+.flowcap{font-size:.84rem;color:var(--ink-soft);margin:0}
+
+.btn{
+  border:1px solid var(--rule);background:var(--paper);color:var(--ink);
+  border-radius:5px;padding:7px 14px;cursor:pointer;font:inherit;font-size:.86rem;font-weight:600;
+  display:inline-flex;align-items:center;gap:7px;
+}
+.btn:hover:not(:disabled){background:var(--paper-sunk)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.pri:disabled{background:var(--paper-sunk);border-color:var(--rule);color:var(--ink-soft);opacity:.75}
+.btn svg{width:14px;height:14px;fill:currentColor}
+.btn.pri{background:var(--red);border-color:var(--red);color:#fff}
+.btn.pri:hover:not(:disabled){background:var(--red-ink);border-color:var(--red-ink)}
+.btn.dim{font-size:.8rem;padding:5px 11px}
+
+/* ---------- Kap. 2: drift ---------- */
+.switcher{display:flex;align-items:center;justify-content:center;gap:16px;margin:0 0 24px;flex-wrap:wrap}
+.swlab{background:none;border:0;font:inherit;font-size:.94rem;font-weight:700;color:var(--ink-soft);cursor:pointer;padding:4px}
+.swlab[aria-pressed="true"]{color:var(--red)}
+.swtrack{width:56px;height:30px;border-radius:15px;background:var(--rule);border:0;cursor:pointer;position:relative;padding:0;flex:0 0 auto}
+.swtrack::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--paper);transition:transform .28s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.swtrack.on{background:var(--red)}
+.swtrack.on::after{transform:translateX(26px)}
+
+.fleet{border:1px solid var(--rule);border-radius:6px;background:var(--paper-alt);padding:24px 20px;margin-bottom:8px}
+.fleetrow{display:flex;align-items:center;justify-content:center;gap:28px;flex-wrap:wrap}
+.source{text-align:right;min-width:170px}
+.source b{display:block;font-family:var(--font-display);font-size:.95rem}
+.source span{font-size:.8rem;color:var(--ink-soft)}
+.feed{width:34px;height:20px;fill:var(--ink-soft);flex:0 0 auto}
+.boxes{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.srv{width:78px;text-align:center}
+.srv .unit{border:2px solid var(--rule);border-radius:5px;padding:9px 0;background:var(--paper);transition:border-color .3s}
+.srv .unit svg{width:26px;height:26px;fill:var(--ink-soft)}
+.srv .id{font-family:var(--font-mono);font-size:.72rem;margin-top:5px;color:var(--ink-soft)}
+.srv .fp{font-family:var(--font-mono);font-size:.7rem;font-weight:700;margin-top:1px}
+.fleet.drift .srv .unit{border-color:var(--temp)}
+.fleet.drift .srv .fp{color:var(--temp)}
+.fleet.unified .srv .unit{border-color:var(--ok)}
+.fleet.unified .srv .fp{color:var(--ok)}
+.fleetcap{text-align:center;font-size:.86rem;color:var(--ink-soft);margin:0 0 26px}
+
+/* ---------- Kap. 3: cyklus ---------- */
+.cyclebox{border:1px solid var(--rule);border-radius:6px;background:var(--paper-alt);padding:18px;margin-bottom:22px}
+.cyclesvg{width:100%;height:auto;display:block;max-width:560px;margin:0 auto}
+.cy-ring{fill:none;stroke:var(--rule);stroke-width:1.5;stroke-dasharray:5 5}
+.cy-node rect{fill:var(--paper);stroke:var(--rule);stroke-width:1.5}
+.cy-node text{font-family:var(--font-display);font-size:11px;font-weight:700;fill:var(--ink);text-anchor:middle}
+.cy-node.hot rect{stroke:var(--red);stroke-width:2}
+.cy-arr{fill:var(--red)}
+
+/* ---------- Kap. 4: simulátor ---------- */
+.sim{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:22px}
+.simcol{border:1px solid var(--rule);border-radius:6px;padding:18px 20px;background:var(--paper)}
+.simcol h4{font-family:var(--font-mono);font-size:.78rem;color:var(--ink-soft);font-weight:600;margin-bottom:14px}
+.slot{border:1px solid var(--rule);border-left-width:4px;border-radius:4px;padding:10px 13px;margin-bottom:9px;background:var(--paper-alt)}
+.slot .sl{font-family:var(--font-mono);font-size:.74rem;color:var(--ink-soft);display:block}
+.slot .sv{font-family:var(--font-mono);font-weight:700;font-size:1.02rem}
+.slot.empty{opacity:.5;border-left-color:var(--rule)}
+.slot.b{border-left-color:var(--ok)} .slot.b .sv{color:var(--ok)}
+.slot.s{border-left-color:var(--temp)} .slot.s .sv{color:var(--temp)}
+.slot.r{border-left-color:var(--ro)} .slot.r .sv{color:var(--ro)}
+.regline{font-family:var(--font-mono);font-size:.86rem;border:1px solid var(--rule);border-radius:4px;padding:9px 13px;margin-bottom:14px;background:var(--paper-alt)}
+.regline b{color:var(--red)}
+.simacts{display:flex;flex-direction:column;gap:7px}
+.simacts .btn{justify-content:flex-start;text-align:left}
+.dlflag{display:inline-block;font-family:var(--font-mono);font-size:.68rem;background:var(--temp);color:#151515;border-radius:3px;padding:1px 6px;margin-left:6px;vertical-align:middle;font-weight:700}
+.timerrow{display:flex;align-items:center;gap:12px;margin:16px 0 0;padding-top:14px;border-top:1px solid var(--rule-soft);flex-wrap:wrap}
+.timerrow span{font-size:.86rem;font-weight:700;flex:1;min-width:150px}
+.timerwarn{margin-top:11px;font-size:.84rem;color:var(--warn);border-left:3px solid var(--warn);padding:2px 0 2px 11px}
+.log{
+  background:var(--code-bg);color:var(--code-ink);border-radius:5px;
+  font-family:var(--font-mono);font-size:.78rem;line-height:1.55;
+  padding:12px 14px;height:214px;overflow-y:auto;margin-top:14px;
+}
+.log div{margin-bottom:3px;white-space:pre-wrap}
+.log .warnln{color:#ff9a8f}
+.log .okln{color:#9ede7f}
+
+/* ---------- Kap. 4: filesystem ---------- */
+.fs{display:grid;grid-template-columns:230px 1fr;gap:22px}
+.fslist{display:flex;flex-direction:column;gap:7px}
+.fslist button{
+  border:1px solid var(--rule);border-left-width:4px;border-radius:4px;
+  background:var(--paper);padding:11px 13px;cursor:pointer;text-align:left;
+  font-family:var(--font-mono);font-weight:700;font-size:.9rem;color:var(--ink);
+}
+.fslist button:hover{background:var(--paper-alt)}
+.fslist button[aria-selected="true"]{background:var(--paper-alt);box-shadow:inset 0 0 0 1px var(--rule)}
+.fsdetail{border:1px solid var(--rule);border-radius:6px;padding:20px 22px;background:var(--paper)}
+.fsdetail h4{font-size:1.06rem;margin-bottom:12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.fsdetail .tbl td:first-child{width:32%}
+
+/* ---------- Kap. 4: merge ---------- */
+.mergebox{border:1px solid var(--rule);border-radius:6px;padding:22px;background:var(--paper-alt);margin-bottom:20px}
+.mergegrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px}
+.mcol{border:1px solid var(--rule);border-radius:5px;background:var(--paper);padding:13px 15px}
+.mcol.out{border-color:var(--merge);border-width:2px}
+.mcol h5{font-family:var(--font-mono);font-size:.74rem;color:var(--ink-soft);margin:0 0 10px;font-weight:600}
+.mcol.out h5{color:var(--merge)}
+.mfile{font-family:var(--font-mono);font-size:.78rem;padding:6px 0;border-bottom:1px dashed var(--rule-soft);line-height:1.4}
+.mfile:last-child{border-bottom:0}
+.mfile b{display:block;font-weight:700}
+.mfile em{font-style:normal;color:var(--ink-soft);font-size:.72rem}
+.mfile.keep b{color:var(--merge)}
+.mfile.fresh b{color:var(--rw)}
+.mlegend{display:flex;gap:18px;flex-wrap:wrap;font-size:.84rem;margin-top:4px}
+.mlegend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
+
+/* ---------- Kap. 5: stack ---------- */
+.stack{display:flex;flex-direction:column;gap:3px;margin-top:12px}
+.stack div{font-family:var(--font-mono);font-size:.74rem;padding:5px 10px;border-radius:3px;background:var(--paper-alt);border-left:3px solid var(--red)}
+
+/* ---------- Kap. 6: řetězec ---------- */
+.chain{max-width:620px;margin:0 0 24px}
+.clink{display:flex;gap:16px;align-items:flex-start;position:relative;padding-bottom:22px}
+.clink:last-child{padding-bottom:0}
+.clink::before{
+  content:"";position:absolute;left:15px;top:34px;bottom:0;width:2px;background:var(--rule);
+}
+.clink:last-child::before{display:none}
+.cdot{
+  flex:0 0 32px;height:32px;border-radius:50%;
+  background:var(--paper);border:2px solid var(--red);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-mono);font-size:.8rem;font-weight:700;color:var(--red);z-index:1;
+}
+.cbody{flex:1;padding-top:3px}
+.cbody b{font-family:var(--font-display);font-size:1rem;display:block;margin-bottom:3px}
+.cbody p{font-size:.92rem;color:var(--ink-soft);margin:0 0 6px}
+
+/* ---------- Kap. 7: kam co patří ---------- */
+.placing{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:10px}
+.pcol{border:1px solid var(--rule);border-top-width:4px;border-radius:5px;padding:15px 17px;background:var(--paper)}
+.pcol.img{border-top-color:var(--ro)}
+.pcol.inst{border-top-color:var(--merge)}
+.pcol.data{border-top-color:var(--rw)}
+.pcol h5{font-family:var(--font-display);font-size:.98rem;margin:0 0 4px}
+.pcol .pw{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-soft);margin-bottom:11px;display:block}
+.pcol ul{margin:0;padding-left:1.1em;font-size:.86rem}
+.pcol li{margin-bottom:5px}
+
+/* ---------- Kap. 7: timeline ---------- */
+.rollout{border:1px solid var(--rule);border-radius:6px;background:var(--paper-alt);padding:20px 18px;margin-bottom:22px}
+.rosvg{width:100%;height:auto;display:block}
+.ro-line{stroke:var(--rule);stroke-width:2}
+.ro-dot{fill:var(--paper);stroke:var(--red);stroke-width:2}
+.ro-lab{font-family:var(--font-display);font-size:10.5px;font-weight:700;fill:var(--ink);text-anchor:middle}
+.ro-sub{font-family:var(--font-body);font-size:9px;fill:var(--ink-soft);text-anchor:middle}
+
+/* ---------- Kap. 7: seznam ---------- */
+.prep{border-top:1px solid var(--rule);margin-bottom:26px}
+.prep>div{border-bottom:1px solid var(--rule-soft);padding:16px 0}
+.prep h4{display:flex;gap:11px;align-items:baseline;font-size:1.02rem;margin-bottom:5px}
+.prep h4 .n{font-family:var(--font-mono);font-size:.78rem;color:var(--red);flex:0 0 1.4em}
+.prep p{margin:0 0 0 2.2em;font-size:.94rem;color:var(--ink-soft);max-width:62ch}
+
+/* ---------- Titulní strana ---------- */
+.cover{padding-top:26px}
+.cover h1{margin-bottom:14px;max-width:16ch}
+.cover .sub{font-size:1.3rem;color:var(--ink-soft);font-family:var(--font-display);font-weight:500;margin-bottom:26px;max-width:32ch;line-height:1.3}
+.cover .intro{max-width:var(--measure);margin-bottom:34px}
+.rule-red{width:64px;height:4px;background:var(--red);margin-bottom:26px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:12px;margin-top:8px}
+.tile{
+  display:flex;gap:14px;align-items:flex-start;text-align:left;
+  border:1px solid var(--rule);border-radius:6px;background:var(--paper);
+  padding:15px 17px;cursor:pointer;font:inherit;color:inherit;
+  transition:border-color .2s,transform .2s;
+}
+.tile:hover{border-color:var(--red);transform:translateY(-2px)}
+.tile .tn{font-family:var(--font-mono);font-size:.8rem;color:var(--red);font-weight:700;padding-top:2px}
+.tile .tt{display:block;font-family:var(--font-display);font-weight:700;font-size:.98rem;line-height:1.3}
+.tile .td{display:block;font-size:.82rem;color:var(--ink-soft);line-height:1.4;margin-top:3px}
+.tile .tw{display:block;min-width:0}
+
+/* ---------- Patička kapitoly ---------- */
+.pagenav{display:flex;justify-content:space-between;gap:12px;margin-top:52px;padding-top:22px;border-top:1px solid var(--rule)}
+.pagenav .btn{max-width:48%}
+.pagenav .btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- Dialog ---------- */
+dialog{
+  border:1px solid var(--rule);border-radius:8px;padding:26px 28px;
+  background:var(--paper);color:var(--ink);max-width:460px;width:92%;
+  box-shadow:0 18px 50px rgba(0,0,0,.28);
+}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+dialog h3{margin-bottom:14px}
+dialog ul{list-style:none;padding:0;font-size:.92rem}
+dialog li{display:flex;gap:12px;margin-bottom:8px}
+dialog kbd{
+  font-family:var(--font-mono);font-size:.78rem;background:var(--paper-sunk);
+  border:1px solid var(--rule);border-radius:4px;padding:1px 7px;flex:0 0 auto;min-width:74px;text-align:center;
+}
+
+/* ---------- Focus ---------- */
+:focus-visible{outline:2px solid var(--red);outline-offset:2px;border-radius:3px}
+
+/* ---------- Responzivita ---------- */
+@media (max-width:1180px){
+  .sim{grid-template-columns:1fr}
+  .log{height:170px}
+}
+@media (max-width:1024px){
+  .g3{grid-template-columns:repeat(2,1fr)}
+  .mergegrid{grid-template-columns:1fr}
+  .placing{grid-template-columns:1fr}
+  .fs{grid-template-columns:1fr}
+  .fslist{flex-direction:row;flex-wrap:wrap}
+  .fslist button{flex:1 1 44%}
+}
+@media (max-width:860px){
+  :root{--nav:0px}
+  .shell{flex-direction:column}
+  .sidebar{
+    position:fixed;left:0;top:0;height:100vh;width:280px;flex-basis:280px;
+    transform:translateX(-100%);transition:transform .28s ease;z-index:60;
+  }
+  .sidebar.open{transform:translateX(0)}
+  .menubtn{display:inline-flex}
+  .topbar{padding:10px 16px}
+  .page{padding:28px 16px 80px}
+  .g2,.g3{grid-template-columns:1fr}
+  .tabs{border-bottom:0;gap:6px}
+  .tabs button{border:1px solid var(--rule);border-radius:5px;margin-bottom:0;padding:8px 14px;font-size:.86rem}
+  .tabs button[aria-selected="true"]{border-color:var(--red);background:var(--paper-alt);border-bottom:1px solid var(--red)}
+  h1{font-size:2rem}
+  .chapter h2{font-size:1.6rem}
+  .cover .sub{font-size:1.1rem}
+  body{font-size:16px}
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55}
+}
+@media (min-width:861px){.scrim{display:none}}
+
+/* ---------- Tisk ---------- */
+@media print{
+  @page{margin:16mm}
+  .sidebar,.topbar,.progress,.pagenav,.copy,.tabs,.switcher,.simacts,.timerrow,
+  .flowbar,dialog,.scrim,.tiles,.btn{display:none!important}
+  .shell{display:block}
+  body{font-size:11pt;background:#fff;color:#000}
+  .page{max-width:none;padding:0}
+  .chapter{display:block!important;page-break-before:always;padding-bottom:0}
+  .chapter:first-of-type{page-break-before:avoid}
+  .panel{display:block!important;margin-bottom:18px}
+  .panel::before{content:attr(data-print-title);display:block;font-weight:700;font-family:var(--font-display);font-size:1.05rem;margin-bottom:8px}
+  .cover{page-break-after:always}
+  .prose,.note,.lede{max-width:none}
+  pre{background:#f4f4f4;color:#000;border:1px solid #ccc}
+  .k,.s,.c,.o{color:#000}
+  .log{display:none}
+  .card,.note,.slot,.simcol,.fsdetail,.mcol,.pcol{break-inside:avoid}
+  a[href]::after{content:""}
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <nav class="sidebar" id="sidebar" aria-label="Obsah">
+    <button class="brandbtn" id="homebtn">
+      <span class="bt">RHEL Image Mode</span>
+      <span class="bs">Operační systém jako container image</span>
+    </button>
+    <div class="tocwrap">
+      <ul class="toc" id="toc"></ul>
+    </div>
+    <div class="sidefoot">
+      Podklad pro samostudium.<br>Stav k září 2026 — RHEL 9.6+ a RHEL 10.x.
+    </div>
+  </nav>
+
+  <div class="stage">
+    <div class="topbar">
+      <button class="iconbtn menubtn" id="menubtn" aria-label="Obsah" title="Obsah">
+        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+      </button>
+      <button class="crumb" id="crumb" data-home="1" title="Zpět na úvod">Úvod</button>
+      <span class="spacer"></span>
+      <button class="iconbtn" id="themebtn" aria-label="Světlý nebo tmavý režim" title="Světlý / tmavý režim (T)">
+        <svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+      </button>
+      <button class="iconbtn" id="printbtn" aria-label="Tisk nebo uložení do PDF" title="Tisk / PDF">
+        <svg viewBox="0 0 24 24"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+      </button>
+      <button class="iconbtn" id="helpbtn" aria-label="Nápověda" title="Klávesové zkratky (?)">
+        <svg viewBox="0 0 24 24"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
+      </button>
+    </div>
+    <div class="progress"><i id="progressfill"></i></div>
+
+    <div class="page">
+
+      <!-- ================= ÚVOD ================= -->
+      <section class="chapter cover on" id="ch-0" aria-label="Úvod">
+        <div class="rule-red"></div>
+        <h1>Operační systém jako container image</h1>
+        <p class="sub">Image mode pro Red Hat Enterprise Linux</p>
+        <div class="intro">
+          <p>Image mode je způsob, jak sestavit, distribuovat a aktualizovat Red Hat Enterprise Linux pomocí OCI container image. Operační systém se popíše v souboru <code>Containerfile</code>, sestaví se běžnými container nástroji, uloží se do container registry a server si ho odtud stáhne a nabootuje z něj.</p>
+          <p>Tento materiál vysvětluje, jak image mode funguje, čím se liší od dosavadního způsobu správy RHEL, kde dává smysl a co je potřeba promyslet, než se nasadí do produkce. Je psaný k samostudiu — není potřeba nic doinstalovávat ani spouštět, jen číst a procházet interaktivní části.</p>
+          <p>Předpokládá běžnou administrátorskou zkušenost s RHEL. Znalost kontejnerů je výhodou, ale není podmínkou; potřebné pojmy jsou vysvětlené průběžně.</p>
+        </div>
+        <div class="tiles" id="tiles"></div>
+      </section>
+
+      <!-- ================= 1 ================= -->
+      <section class="chapter" id="ch-1" aria-label="Co je image mode">
+        <p class="eyebrow">Kapitola 1</p>
+        <h2>Co je image mode</h2>
+        <p class="lede">Principy, na kterých stojí správa kontejnerů, se uplatní na samotném operačním systému. Technologie, která to umožňuje, se jmenuje bootc — boot container.</p>
+
+        <div class="prose">
+          <p>V tradičním nasazení se RHEL nainstaluje z instalačního média a pak se konfiguruje na běžícím stroji — balíčky se doinstalují pomocí <code>dnf</code>, konfigurace se upraví skripty nebo Ansible playbooky. Výsledný stav serveru je součtem instalace a všeho, co se na něm od té doby stalo.</p>
+          <p>V image mode se pořadí obrátí. Celý obsah operačního systému včetně aplikací a konfigurace se nejdřív sestaví do jednoho image, ten se otestuje, uloží do registry a teprve pak se nasadí. Server tedy nevzniká konfigurací po instalaci, ale nabootováním hotového, předem sestaveného celku.</p>
+        </div>
+
+        <div class="note flag">
+          <h4>K čemu dochází</h4>
+          <p>Nejčastější otázka při prvním setkání s image mode zní, jestli operační systém poběží v kontejneru. Neběží. Container image je tady pouze formát balení a přepravy — svou rolí odpovídá ISO obrazu nebo diskovému obrazu virtuálního stroje. Rozdíl je v tom, že se s ním pracuje stejnými nástroji jako s aplikačními kontejnery. Server z něj bootuje nativně: má vlastní kernel, vlastní bootloader, přímý přístup k hardwaru a k firmwaru.</p>
+        </div>
+
+        <div class="flowbox">
+          <svg class="flowsvg" viewBox="0 0 880 210" role="img" aria-label="Tok od Containerfile v Gitu přes build a registry až po nabootovaný server">
+            <defs>
+              <marker id="ah" markerWidth="9" markerHeight="7" refX="8.5" refY="3.5" orient="auto">
+                <polygon points="0 0, 9 3.5, 0 7" fill="context-stroke"/>
+              </marker>
+            </defs>
+            <rect class="fzone" x="14" y="24" width="470" height="106" rx="7"/>
+            <text class="fzlabel" x="26" y="43">sestavení — jednou pro celou roli</text>
+            <rect class="fzone" x="508" y="24" width="358" height="106" rx="7"/>
+            <text class="fzlabel" x="520" y="43">provoz — opakovaně na každém serveru</text>
+
+            <g class="fnode" id="fn1">
+              <rect x="30" y="58" width="122" height="52" rx="6"/>
+              <text x="91" y="80">Containerfile<tspan class="sub" x="91" dy="16">verzovaný v Gitu</tspan></text>
+            </g>
+            <line class="farr" id="fa1" x1="158" y1="84" x2="196" y2="84" marker-end="url(#ah)"/>
+            <g class="fnode" id="fn2">
+              <rect x="202" y="58" width="122" height="52" rx="6"/>
+              <text x="263" y="80">Build<tspan class="sub" x="263" dy="16">Podman / CI/CD</tspan></text>
+            </g>
+            <line class="farr" id="fa2" x1="330" y1="84" x2="368" y2="84" marker-end="url(#ah)"/>
+            <g class="fnode" id="fn3">
+              <rect x="352" y="58" width="122" height="52" rx="6"/>
+              <text x="413" y="80">OCI image<tspan class="sub" x="413" dy="16">tag + digest</tspan></text>
+            </g>
+            <line class="farr" id="fa3" x1="480" y1="84" x2="524" y2="84" marker-end="url(#ah)"/>
+            <g class="fnode" id="fn4">
+              <rect x="530" y="58" width="130" height="52" rx="6"/>
+              <text x="595" y="80">Registry<tspan class="sub" x="595" dy="16">Quay, Satellite…</tspan></text>
+            </g>
+            <line class="farr" id="fa4" x1="666" y1="84" x2="704" y2="84" marker-end="url(#ah)"/>
+            <g class="fnode" id="fn5">
+              <rect x="710" y="58" width="140" height="52" rx="6"/>
+              <text x="780" y="80">Server bootuje<tspan class="sub" x="780" dy="16">bare metal, VM, cloud</tspan></text>
+            </g>
+
+            <text class="fzlabel" x="440" y="170" text-anchor="middle">Táž cesta platí pro první instalaci i pro každou další aktualizaci.</text>
+            <text class="fzlabel" x="440" y="188" text-anchor="middle">Aktualizace znamená nový image v registry, nikoli zásah na běžícím serveru.</text>
+          </svg>
+          <div class="flowbar">
+            <p class="flowcap">Vlevo se image sestavuje, vpravo se z něj bootuje. Mezi tím je registry.</p>
+            <button class="btn dim" id="flowplay">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Přehrát
+            </button>
+          </div>
+        </div>
+
+        <h3>Stejný RHEL, jiný způsob doručení</h3>
+        <div class="prose">
+          <p>Uvnitř bootc image jsou tytéž RPM balíčky, ze kterých se skládá tradiční instalace RHEL. Platí pro ně stejná errata, stejný lifecycle a stejné podmínky podpory. Mění se výhradně způsob, jakým se systém sestavuje a jak se k němu dostanou aktualizace.</p>
+          <p>Základní image poskytuje Red Hat na adrese <code>registry.redhat.io/rhel10/rhel-bootc</code>, pro RHEL 9 na <code>registry.redhat.io/rhel9/rhel-bootc</code>. Od aplikačních Universal Base Images se liší tím, že obsahuje i komponenty potřebné ke spuštění stroje — kernel, initrd, bootloader a firmware — které se do aplikačních images tradičně nedávají.</p>
+        </div>
+
+        <div class="chips">
+          <span class="chip"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Plně podporováno od RHEL 9.6 a RHEL 10.0</span>
+          <span class="chip"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Součást všech RHEL subskripcí, bez příplatku</span>
+          <span class="chip"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> K dispozici i EUS varianty bootc images</span>
+        </div>
+
+        <div class="prose">
+          <p>Image mode běží všude, kde běží RHEL — na bare metalu, ve virtualizaci, v public cloudu i na edge zařízeních. Cílem je jeden společný workflow pro vývojáře i administrátory: <code>Containerfile</code> v Gitu, container registry a CI/CD pipeline, tedy postupy, které většina organizací už používá pro aplikace.</p>
+        </div>
+      </section>
+
+      <!-- ================= 2 ================= -->
+      <section class="chapter" id="ch-2" aria-label="Package mode a image mode">
+        <p class="eyebrow">Kapitola 2</p>
+        <h2>Package mode a image mode</h2>
+        <p class="lede">Oba režimy jsou plně podporované a mohou vedle sebe běžet v jedné infrastruktuře. Volba se dělá pro konkrétní serverovou roli, ne jednou pro celou firmu.</p>
+
+        <div class="prose">
+          <p>Dosavadnímu způsobu správy se nově říká package mode. Nikam nemizí a Red Hat ho podporuje dál. Image mode je druhá možnost, jak tentýž RHEL nasadit. Následující přepínač ukazuje zásadní rozdíl mezi nimi v tom, jak se v čase vyvíjí stav flotily serverů.</p>
+        </div>
+
+        <div class="switcher">
+          <button class="swlab" id="lab-pkg" aria-pressed="true">Package mode</button>
+          <button class="swtrack" id="modesw" aria-label="Přepnout mezi package mode a image mode"></button>
+          <button class="swlab" id="lab-img" aria-pressed="false">Image mode</button>
+        </div>
+
+        <div class="fleet drift" id="fleet">
+          <div class="fleetrow">
+            <div class="source">
+              <b id="src-t">RPM repozitáře</b>
+              <span id="src-s">Každý server si bere balíčky sám</span>
+            </div>
+            <svg class="feed" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+            <div class="boxes" id="boxes"></div>
+          </div>
+        </div>
+        <p class="fleetcap" id="fleetcap">Servery byly nasazené ze stejného zadání, ale po několika kolech záplatování a ručních zásahů se jejich stav rozchází. Zjistit, čím přesně se liší, znamená každý z nich prozkoumat.</p>
+
+        <div class="scrollx">
+          <table class="tbl cmp">
+            <thead>
+              <tr><th></th><th id="th-pkg" class="hl">Package mode</th><th id="th-img">Image mode</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Jednotka změny</td><td>jednotlivé RPM balíčky (<code>dnf</code>)</td><td>celý image operačního systému (verze = tag / digest)</td></tr>
+              <tr><td>Zdroj aktualizací</td><td>RPM repozitáře (Red Hat CDN, Satellite)</td><td>OCI container registry (Red Hat Quay, Satellite, Artifactory, Harbor…)</td></tr>
+              <tr><td>Definice systému</td><td>kickstart a post-install konfigurace (Ansible, skripty)</td><td><code>Containerfile</code> verzovaný v Gitu</td></tr>
+              <tr><td>Root filesystem</td><td>zapisovatelný</td><td>za běhu read-only, zapisovatelné jsou <code>/etc</code> a <code>/var</code></td></tr>
+              <tr><td>Aktualizace</td><td>in-place, balíček po balíčku</td><td>transakční: stáhne se nový image, aktivuje se rebootem</td></tr>
+              <tr><td>Rollback</td><td>bez vestavěného mechanismu pro celý OS (<code>dnf history</code>, snapshoty VM nebo LVM)</td><td>vestavěný: <code>bootc rollback</code> a reboot</td></tr>
+              <tr><td>Konzistence flotily</td><td>stav serverů se může postupně rozcházet</td><td>servery ze stejného image mají identický <code>/usr</code>, ověřitelné podle digestu</td></tr>
+              <tr><td>Instalace</td><td>Anaconda a kickstart</td><td>Anaconda a kickstart (<code>ostreecontainer</code>), <code>bootc-image-builder</code>, <code>bootc install</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="note">
+          <h4>K čemu dochází</h4>
+          <p>Image mode není náhradou package mode a nemá smysl uvažovat o plošné migraci. Rozhoduje charakter serverové role. Tam, kde je server spíš appliance — plní jednu jasně vymezenou funkci a je jich víc stejných — dává image mode největší smysl. Naopak u strojů s proměnlivým obsahem, které si spravuje několik různých týmů a kde se běžně doinstalovávají balíčky za provozu, je package mode praktičtější.</p>
+        </div>
+      </section>
+
+      <!-- ================= 3 ================= -->
+      <section class="chapter" id="ch-3" aria-label="Build, deploy, manage">
+        <p class="eyebrow">Kapitola 3</p>
+        <h2>Build, deploy, manage</h2>
+        <p class="lede">Životní cyklus systému se rozpadá na tři kroky, které odpovídají tomu, jak se dnes pracuje s aplikačními kontejnery.</p>
+
+        <div class="tabs" role="tablist" id="tabs3">
+          <button role="tab" aria-selected="true" data-p="p3-1">Build — sestavení</button>
+          <button role="tab" aria-selected="false" data-p="p3-2">Deploy — nasazení</button>
+          <button role="tab" aria-selected="false" data-p="p3-3">Manage — správa</button>
+        </div>
+
+        <div class="panel on" id="p3-1" data-print-title="Build — sestavení">
+          <div class="prose">
+            <p>Obsah operačního systému se popíše v souboru <code>Containerfile</code>. Vychází se ze základního <code>rhel-bootc</code> image a přidají se balíčky, konfigurační soubory, agenti a aplikace. Výsledek je textový popis, který lze verzovat, recenzovat v pull requestu a kdykoli znovu sestavit.</p>
+          </div>
+
+          <pre><code><span class="k">FROM</span> registry.redhat.io/rhel10/rhel-bootc:latest
+<span class="k">RUN</span> dnf -y install httpd &amp;&amp; dnf clean all
+<span class="k">RUN</span> systemctl enable httpd
+<span class="k">COPY</span> etc/ /etc/
+<span class="c"># V produkci řídí aktualizace management nástroj, ne automatický timer</span>
+<span class="k">RUN</span> systemctl disable bootc-fetch-apply-updates.timer</code><button class="copy">Kopírovat</button></pre>
+
+          <div class="prose">
+            <p>Sestavuje se běžnými nástroji — Podmanem, na OpenShiftu nebo v libovolné CI/CD pipeline, ať už jde o GitLab CI, GitHub Actions, Tekton nebo Jenkins. Build musí běžet na registrovaném RHEL hostu, případně v CI s předanými entitlementy, aby měl <code>dnf</code> přístup k Red Hat repozitářům.</p>
+          </div>
+
+          <pre><code>podman build -t registry.example.com/os/rhel-web:1.0 .
+podman push registry.example.com/os/rhel-web:1.0</code><button class="copy">Kopírovat</button></pre>
+
+          <div class="note">
+            <h4>K čemu dochází</h4>
+            <p>Red Hat přestavuje základní bootc image nejméně jednou měsíčně, u kritických oprav častěji. Nový základní image ale sám o sobě nic nenasadí a nevyvolá přestavbu odvozených images. Kdy se nová verze promítne do vašich serverů, rozhodujete vy tím, že spustíte build a publikujete výsledek.</p>
+          </div>
+        </div>
+
+        <div class="panel" id="p3-2" data-print-title="Deploy — nasazení">
+          <div class="prose">
+            <p>Hotový image se dá na cílové stroje dostat několika cestami. Volba závisí na tom, jak se ve vašem prostředí servery dnes provisionují.</p>
+          </div>
+          <div class="grid g2">
+            <div class="card">
+              <h4>Anaconda a kickstart</h4>
+              <p>Známý instalátor RHEL. V kickstartu se použije direktiva <code>ostreecontainer</code> s odkazem na image. Funguje s PXE bootem, instalačním ISO i s provisioningem ze Satellite, takže stávající postupy zůstanou v platnosti.</p>
+            </div>
+            <div class="card">
+              <h4><code>bootc-image-builder</code></h4>
+              <p>Kontejnerizovaný nástroj, který z bootc image vyrobí diskový obraz. Podporované výstupy zahrnují <code>qcow2</code> pro KVM, <code>vmdk</code> pro vSphere, <code>ami</code> pro AWS, <code>gce</code>, neformátovaný <code>raw</code> a instalační <code>iso</code>.</p>
+            </div>
+            <div class="card">
+              <h4><code>bootc install</code></h4>
+              <p>Instalace přímo z běžícího kontejneru na disk, ve variantách <code>to-disk</code> a <code>to-filesystem</code>. Hodí se pro bare metal a pokročilé scénáře, kde je potřeba mít plnou kontrolu nad rozdělením disku.</p>
+            </div>
+            <div class="card">
+              <h4><code>system-reinstall-bootc</code></h4>
+              <p>Převede existující RHEL systém, typicky cloudovou instanci, na image mode. Jde o reinstalaci na stejném stroji, ne o konverzi za běhu.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" id="p3-3" data-print-title="Manage — správa">
+          <div class="prose">
+            <p>Změna systému začíná commitem do Gitu, nikoli přihlášením přes SSH. Pipeline sestaví nový image, uloží ho do registry a servery si ho odtud vyzvednou. Tím se z konfigurace serveru stává artefakt, který má historii, autora a schvalovací proces.</p>
+          </div>
+
+          <div class="cyclebox">
+            <svg class="cyclesvg" viewBox="0 0 560 330" role="img" aria-label="Cyklus: Git, CI build, registry, servery, přehled v Satellite a zpět do Gitu">
+              <circle class="cy-ring" cx="280" cy="162" r="118"/>
+              <g class="cy-node hot"><rect x="216" y="10" width="128" height="42" rx="6"/><text x="280" y="30">Git</text><text x="280" y="44" style="font-size:9.5px;font-weight:400;fill:var(--ink-soft)">Containerfile, review</text></g>
+              <g class="cy-node"><rect x="416" y="96" width="128" height="42" rx="6"/><text x="480" y="116">CI build</text><text x="480" y="130" style="font-size:9.5px;font-weight:400;fill:var(--ink-soft)">test image</text></g>
+              <g class="cy-node"><rect x="380" y="240" width="128" height="42" rx="6"/><text x="444" y="260">Registry</text><text x="444" y="274" style="font-size:9.5px;font-weight:400;fill:var(--ink-soft)">tag + digest</text></g>
+              <g class="cy-node"><rect x="146" y="272" width="128" height="42" rx="6"/><text x="210" y="292">Servery</text><text x="210" y="306" style="font-size:9.5px;font-weight:400;fill:var(--ink-soft)">pull a reboot</text></g>
+              <g class="cy-node"><rect x="16" y="130" width="128" height="42" rx="6"/><text x="80" y="150">Přehled</text><text x="80" y="164" style="font-size:9.5px;font-weight:400;fill:var(--ink-soft)">Satellite: digesty</text></g>
+              <polygon class="cy-arr" points="384,52 400,62 382,72"/>
+              <polygon class="cy-arr" points="470,182 466,200 452,188"/>
+              <polygon class="cy-arr" points="318,288 300,292 316,302"/>
+              <polygon class="cy-arr" points="94,212 106,226 88,230"/>
+              <polygon class="cy-arr" points="150,60 166,50 168,68"/>
+            </svg>
+          </div>
+
+          <h3>Příkazy, se kterými se pracuje nejčastěji</h3>
+          <div class="scrollx">
+            <table class="tbl">
+              <thead><tr><th>Příkaz</th><th>Co dělá</th></tr></thead>
+              <tbody>
+                <tr><td><code>bootc status</code></td><td>Ukáže, co běží (booted), co je připraveno na příští boot (staged) a kam se lze vrátit (rollback).</td></tr>
+                <tr><td><code>bootc upgrade</code></td><td>Stáhne novou verzi z registry a připraví ji. S přepínačem <code>--apply</code> rovnou rebootuje.</td></tr>
+                <tr><td><code>bootc upgrade --download-only</code></td><td>Verzi jen stáhne a nechá zamčenou; aktivuje se až příkazem <code>bootc upgrade --from-downloaded</code> v údržbovém okně. Od RHEL 10.2.</td></tr>
+                <tr><td><code>bootc switch &lt;image&gt;</code></td><td>Přepne server na jiný image nebo tag, typicky ze stage na prod. Zachová obsah <code>/etc</code> a <code>/var</code>.</td></tr>
+                <tr><td><code>bootc rollback</code></td><td>Zařadí předchozí verzi na příští boot.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="note">
+            <h4>K čemu dochází</h4>
+            <p>Red Hat Satellite od verze 6.17 umí image mode hosty zaregistrovat, zobrazit jejich bootc status a spouštět nad nimi bootc akce přes remote execution. Na stránce Booted Container Images ukazuje, kolik různých digestů ve flotile reálně běží. Rozptyl digestů pod jednou cestou k image je přímou mírou toho, jak moc je flotila rozjetá — a nevyžaduje obcházení jednotlivých serverů.</p>
+          </div>
+
+          <div class="note care">
+            <h4>Kde je hranice</h4>
+            <p>Image mode odchylky v konfiguraci výrazně omezuje, protože <code>/usr</code> nelze změnit jinak než nasazením nového image. Neodstraňuje je ale úplně: <code>/etc</code> a <code>/var</code> zůstávají zapisovatelné a ruční zásah do nich je možný. Pravidlo, že všechny změny procházejí přes image, tedy i nadále zůstává věcí procesní disciplíny, ne jen technického opatření.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 4 ================= -->
+      <section class="chapter" id="ch-4" aria-label="Jak to funguje uvnitř">
+        <p class="eyebrow">Kapitola 4</p>
+        <h2>Jak to funguje uvnitř</h2>
+        <p class="lede">Tři mechanismy, na kterých image mode stojí: transakční aktualizace s návratem zpět, rozdělení filesystemu na neměnnou a perzistentní část, a slučování konfigurace v <code>/etc</code>.</p>
+
+        <div class="tabs" role="tablist" id="tabs4">
+          <button role="tab" aria-selected="true" data-p="p4-1">Aktualizace a rollback</button>
+          <button role="tab" aria-selected="false" data-p="p4-2">Souborový systém</button>
+          <button role="tab" aria-selected="false" data-p="p4-3">Slučování /etc</button>
+        </div>
+
+        <!-- 4.1 -->
+        <div class="panel on" id="p4-1" data-print-title="Aktualizace a rollback">
+          <div class="prose">
+            <p>Příkaz <code>bootc upgrade</code> stáhne z registry nový image — přenesou se jen vrstvy, které se změnily — a připraví ho vedle běžícího systému jako takzvaný staged deployment. Běžící systém se tím nijak nemění a nová verze se aktivuje až při dalším rebootu.</p>
+            <p>Na disku tak souběžně existuje běžící verze, verze, ke které se lze vrátit, a případně připravená nová verze. Nejde o dva pevně rozdělené A/B oddíly: jednotlivé deploymenty sdílejí deduplikované úložiště, takže druhá verze nezabere dvojnásobek místa.</p>
+            <p>Následující simulace ukazuje, jak se tyto tři pozice mění při publikaci nového image, aktualizaci, rebootu a návratu zpět. Vyzkoušejte si i kombinaci, kdy je zapnutý automatický timer.</p>
+          </div>
+
+          <div class="sim">
+            <div class="simcol">
+              <h4>bootc status</h4>
+              <div class="slot b" id="slot-b"><span class="sl">Booted — běží teď</span><span class="sv" id="v-b">v1</span></div>
+              <div class="slot s empty" id="slot-s"><span class="sl">Staged — připraveno na příští boot</span><span class="sv" id="v-s">—</span></div>
+              <div class="slot r empty" id="slot-r"><span class="sl">Rollback — verze, kam se lze vrátit</span><span class="sv" id="v-r">—</span></div>
+
+              <div class="timerrow">
+                <span>Automatický timer <code>bootc-fetch-apply-updates</code></span>
+                <button class="swtrack" id="timersw" aria-label="Zapnout nebo vypnout automatický timer" aria-pressed="false"></button>
+              </div>
+              <div class="timerwarn" id="timerwarn" hidden>
+                Zapnutý timer sám kontroluje registry, novou verzi stáhne, aplikuje a server rebootuje bez zásahu obsluhy. Ve výchozím stavu je zapnutý.
+              </div>
+            </div>
+
+            <div class="simcol">
+              <h4>Akce</h4>
+              <div class="regline">V registry je: <b id="v-reg">v1</b></div>
+              <div class="simacts">
+                <button class="btn" id="a-pub">Publikovat do registry novou verzi</button>
+                <button class="btn pri" id="a-up">bootc upgrade</button>
+                <button class="btn" id="a-dl">bootc upgrade --download-only</button>
+                <button class="btn" id="a-reb">Reboot serveru</button>
+                <button class="btn" id="a-rb">bootc rollback</button>
+                <button class="btn" id="a-tick" hidden>Uplynul interval timeru</button>
+                <button class="btn dim" id="a-res">Začít znovu</button>
+              </div>
+              <div class="log" id="simlog" aria-live="polite"></div>
+            </div>
+          </div>
+
+          <div class="grid g3">
+            <div class="card">
+              <span class="tag t-ro">Rollback</span>
+              <p style="margin-top:9px">Příkaz <code>bootc rollback</code> přehodí pořadí položek v bootloaderu a zahodí případnou připravenou aktualizaci. Změna se projeví až po rebootu. Předchozí verzi lze vybrat i ručně v menu GRUBu při startu.</p>
+            </div>
+            <div class="card">
+              <span class="tag t-wn">Automatický návrat</span>
+              <p style="margin-top:9px">Systém se sám nevrátí zpět jen proto, že nová verze nefunguje. Automatický rollback vyžaduje nakonfigurované health-checky (greenboot), které po startu ověří, že server plní svou funkci. Bez nich je návrat ruční operací.</p>
+            </div>
+            <div class="card">
+              <span class="tag t-mg">Soft reboot</span>
+              <p style="margin-top:9px">RHEL 10 umí takzvaný soft reboot — restartuje se jen userspace, kernel a hardware běží dál. Výrazně to zkracuje výpadek, ale je použitelný pouze tehdy, pokud nová verze nemění kernel.</p>
+            </div>
+          </div>
+
+          <div class="note care">
+            <h4>Na co si dát pozor</h4>
+            <p>Změny provedené v <code>/etc</code> po aktualizaci se při návratu zpět nepřenesou — obsah <code>/etc</code> se vrátí do stavu, v jakém byl v předchozím deploymentu. Pokud je potřeba nějaký upravený soubor zachovat i po rollbacku, musí se jeho kopie uložit někam pod <code>/var</code>, protože ta rollbackem dotčená není. Druhá past se týká zapnutého timeru: po návratu zpět timer do jedné až tří hodin najde v registry novější verzi a server na ni znovu povýší, pokud se nevypne.</p>
+          </div>
+        </div>
+
+        <!-- 4.2 -->
+        <div class="panel" id="p4-2" data-print-title="Souborový systém">
+          <div class="prose">
+            <p>Root filesystem je v image mode ve výchozím stavu neměnný. Zapisovat lze pouze do <code>/etc</code> a <code>/var</code>; veškerý ostatní obsah pochází z image. Vyberte adresář a zobrazí se, co pro něj platí za běhu a co se s ním stane při aktualizaci.</p>
+          </div>
+
+          <div class="fs">
+            <div class="fslist" role="tablist" aria-label="Adresáře">
+              <button role="tab" aria-selected="true" data-fs="root">/ a /usr</button>
+              <button role="tab" aria-selected="false" data-fs="opt">/opt, /usr/local</button>
+              <button role="tab" aria-selected="false" data-fs="etc">/etc</button>
+              <button role="tab" aria-selected="false" data-fs="var">/var</button>
+            </div>
+            <div class="fsdetail" id="fsdetail" aria-live="polite"></div>
+          </div>
+
+          <div class="note care">
+            <h4>K čemu dochází</h4>
+            <p>Adresář <code>/opt</code> bývá v praxi nejčastějším zdrojem překvapení. Software třetích stran se do něj tradičně instaluje a nezřídka si do svého podadresáře zapisuje i za běhu — logy, cache, stavové soubory. Za běhu je ale <code>/opt</code> read-only, takže takový zápis selže. Řešením je při sestavení image přesměrovat zapisovaná podadresář do <code>/var</code>, buď symbolickým odkazem, nebo přes <code>BindPaths</code> v systemd jednotce dané služby.</p>
+          </div>
+
+          <h3>Dočasná změna pro ladění</h3>
+          <div class="prose">
+            <p>Pokud je potřeba na běžícím systému něco rychle vyzkoušet, příkaz <code>bootc usr-overlay</code> vytvoří nad <code>/usr</code> dočasnou zapisovatelnou vrstvu; totéž umí <code>dnf install --transient</code>. Tato vrstva po rebootu zmizí. Je určená k ladění a diagnostice, ne k trvalým změnám — ty patří do image.</p>
+          </div>
+        </div>
+
+        <!-- 4.3 -->
+        <div class="panel" id="p4-3" data-print-title="Slučování /etc">
+          <div class="prose">
+            <p>Konfigurace v <code>/etc</code> je perzistentní, ale nový image s sebou nese i vlastní výchozí <code>/etc</code>. Aby se při aktualizaci nepřepsaly lokální úpravy a zároveň se propsaly nové výchozí hodnoty, provádí se takzvaný třícestný merge.</p>
+            <p>Základem je nové výchozí <code>/etc</code> z image. Na něj se aplikuje rozdíl mezi současným a předchozím výchozím stavem. Soubor, který jste lokálně změnili, tak zůstane ve vaší podobě; soubor, kterého jste se nedotkli, převezme novou výchozí hodnotu.</p>
+          </div>
+
+          <div class="mergebox">
+            <div class="mergegrid">
+              <div class="mcol">
+                <h5>stav před aktualizací</h5>
+                <div class="mfile"><b>/etc/hostname</b><em>lokálně změněno</em></div>
+                <div class="mfile"><b>/etc/chrony.conf</b><em>beze změny, výchozí z image</em></div>
+                <div class="mfile"><b>/etc/httpd/conf.d/app.conf</b><em>neexistuje</em></div>
+              </div>
+              <div class="mcol">
+                <h5>nové výchozí /etc z image</h5>
+                <div class="mfile"><b>/etc/hostname</b><em>výchozí hodnota</em></div>
+                <div class="mfile"><b>/etc/chrony.conf</b><em>nové NTP servery</em></div>
+                <div class="mfile"><b>/etc/httpd/conf.d/app.conf</b><em>nový soubor</em></div>
+              </div>
+              <div class="mcol out">
+                <h5>výsledek po aktualizaci</h5>
+                <div class="mfile keep"><b>/etc/hostname</b><em>zachována lokální hodnota</em></div>
+                <div class="mfile fresh"><b>/etc/chrony.conf</b><em>převzata nová výchozí</em></div>
+                <div class="mfile fresh"><b>/etc/httpd/conf.d/app.conf</b><em>přidán z image</em></div>
+              </div>
+            </div>
+            <div class="mlegend">
+              <span><i style="background:var(--merge)"></i>zachována lokální změna</span>
+              <span><i style="background:var(--rw)"></i>převzato z nového image</span>
+            </div>
+          </div>
+
+          <div class="note">
+            <h4>K čemu dochází</h4>
+            <p>Merge se provádí při vytváření nového deploymentu, tedy při vypínání systému před rebootem, ne při běhu. Díky tomu přežijí aktualizaci věci jako hostname, síťová konfigurace nebo SSH klíče hostitele, aniž by je bylo nutné po každé aktualizaci znovu nastavovat.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 5 ================= -->
+      <section class="chapter" id="ch-5" aria-label="Kde dává image mode smysl">
+        <p class="eyebrow">Kapitola 5</p>
+        <h2>Kde dává image mode smysl</h2>
+        <p class="lede">Scénáře, ve kterých model neměnného, verzovaného operačního systému řeší reálný provozní problém.</p>
+
+        <div class="grid g2">
+          <div class="card">
+            <svg class="ci" viewBox="0 0 24 24"><path d="M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14z"/></svg>
+            <h4>Edge zařízení</h4>
+            <p>Velké flotily se spravují přes registry a stahují se jen změněné vrstvy, což šetří pásmo na pomalých linkách. Když se aktualizace nepovede, návrat zpět nevyžaduje výjezd technika. Od RHEL 10 image mode nahrazuje dřívější RHEL for Edge postavený na rpm-ostree.</p>
+          </div>
+          <div class="card accent">
+            <svg class="ci" viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5l8 2.5z"/></svg>
+            <h4>AI a strojové učení</h4>
+            <p>Funkční AI stack je křehká kombinace verzí kernelu, ovladačů GPU a frameworků. V image mode se tato kombinace jednou otestuje a nasazuje se jako jeden celek, takže na uzlech nemůže vzniknout rozdílná kombinace verzí. Ovladače třetích stran se integrují přímo v <code>Containerfile</code>.</p>
+            <div class="stack">
+              <div>AI frameworky</div>
+              <div>ovladače GPU</div>
+              <div>kernel</div>
+            </div>
+          </div>
+          <div class="card">
+            <svg class="ci" viewBox="0 0 24 24"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-7 12l-4-4h3V8h2v4h3l-4 4z"/></svg>
+            <h4>Appliance — jedna aplikace na jeden server</h4>
+            <p>Operační systém a aplikace tvoří jednu verzovanou jednotku, která se nasazuje i vrací zpět najednou. Aplikační kontejnery lze s OS image svázat (logically nebo physically bound images) a spouštět je jako systemd služby přes Quadlet.</p>
+          </div>
+          <div class="card">
+            <svg class="ci" viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+            <h4>Container hosty</h4>
+            <p>Když už tým staví a publikuje aplikační kontejnery, hostitelský operační systém projde stejnou pipeline, stejným skenováním a stejným schvalováním. Odpadá druhá sada nástrojů a postupů pro OS.</p>
+          </div>
+          <div class="card">
+            <svg class="ci" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+            <h4>Standardizované a regulované flotily</h4>
+            <p>Golden image přestává být dokumentem a stává se auditovatelným artefaktem: zahardenovaný při sestavení, podepsaný a s jednoznačným digestem, podle kterého lze kdykoli doložit, co přesně na kterém serveru běží.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 6 ================= -->
+      <section class="chapter" id="ch-6" aria-label="Bezpečnost a compliance">
+        <p class="eyebrow">Kapitola 6</p>
+        <h2>Bezpečnost a compliance</h2>
+        <p class="lede">Bezpečnostní opatření se posouvají z běžícího serveru do procesu sestavení image, kde se dají automatizovat a doložit.</p>
+
+        <div class="chain">
+          <div class="clink">
+            <div class="cdot">1</div>
+            <div class="cbody">
+              <b>Základní image a balíčky od Red Hatu</b>
+              <p>Základní bootc image i jednotlivé RPM balíčky podepisuje Red Hat. Důvěryhodný řetězec tedy začíná ještě před vaší pipeline.</p>
+            </div>
+          </div>
+          <div class="clink">
+            <div class="cdot">2</div>
+            <div class="cbody">
+              <b>Hardening při sestavení</b>
+              <p>Nástroj <code>oscap-im</code> z balíku OpenSCAP aplikuje bezpečnostní profil, například CIS, už při sestavení image. Oproti remediaci po instalaci se tím pokryjí i věci, které se na běžícím systému opravují obtížně. Soulad běžícího systému se pak ověřuje nástrojem <code>oscap</code> úplně stejně jako v package mode.</p>
+              <p><span class="chip" style="margin-top:2px">Režim FIPS lze zapnout při sestavení i při instalaci image</span></p>
+            </div>
+          </div>
+          <div class="clink">
+            <div class="cdot">3</div>
+            <div class="cbody">
+              <b>Podpis a skenování</b>
+              <p>Odvozený image podepíšete vlastním klíčem (Podman se sigstore) a podpis se uloží v registry vedle image. Zranitelnosti se skenují stejnými nástroji jako u aplikačních kontejnerů — v CI i průběžně v registry, tedy dřív, než se image dostane na server.</p>
+              <p><span class="chip tp" style="margin-top:2px">Kryptografické zapečetění image vlastními Secure Boot klíči — Technology Preview v RHEL 10</span></p>
+            </div>
+          </div>
+          <div class="clink">
+            <div class="cdot">4</div>
+            <div class="cbody">
+              <b>Server přijme jen to, co má podpis</b>
+              <p>Hosty lze nastavit tak, aby stahovaly a bootovaly výhradně podepsané image. Nepodepsaný nebo cizí image se na server nedostane.</p>
+            </div>
+          </div>
+          <div class="clink">
+            <div class="cdot">5</div>
+            <div class="cbody">
+              <b>Neměnný běh a auditovatelnost</b>
+              <p>Read-only <code>/usr</code> výrazně ztěžuje trvalou neautorizovanou změnu systému — každá změna operačního systému má svůj původ v konkrétním image. Na otázku, co přesně na daném serveru běží, existuje jednoznačná odpověď v podobě digestu.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="note">
+          <h4>Souvislost s bezpečností dodavatelského řetězce</h4>
+          <p>Postupy v této kapitole jsou tytéž, které se používají k zabezpečení dodavatelského řetězce aplikací: podepisování artefaktů, evidence obsahu v podobě SBOM a průběžná analýza zranitelností. Rozdíl je jen v tom, že se tu uplatní na operační systém. Organizace, která už tyto nástroje má zavedené pro aplikace, je může použít i pro OS.</p>
+        </div>
+      </section>
+
+      <!-- ================= 7 ================= -->
+      <section class="chapter" id="ch-7" aria-label="Než se nasadí do produkce">
+        <p class="eyebrow">Kapitola 7</p>
+        <h2>Než se nasadí do produkce</h2>
+        <p class="lede">Image mode mění provozní zvyklosti. Následující body je dobré projít dřív, než se rozhodne o nasazení — ne proto, že by šlo o překážky, ale proto, že se na ně obvykle naráží až v ostrém provozu.</p>
+
+        <h3>Rytmus aktualizací</h3>
+        <div class="prose">
+          <p>Životní cyklus verze vypadá v image mode jinak než dnes. Errata už nejde nasadit přímo; nejdřív se musí promítnout do nového image.</p>
+        </div>
+
+        <div class="rollout">
+          <svg class="rosvg" viewBox="0 0 860 132" role="img" aria-label="Časová osa od vydání errata po nasazení v produkčních vlnách">
+            <line class="ro-line" x1="52" y1="56" x2="808" y2="56"/>
+            <circle class="ro-dot" cx="52" cy="56" r="8"/>
+            <text class="ro-lab" x="52" y="34">Errata</text>
+            <text class="ro-sub" x="52" y="82">Red Hat vydá</text>
+            <text class="ro-sub" x="52" y="96">nový base image</text>
+            <circle class="ro-dot" cx="241" cy="56" r="8"/>
+            <text class="ro-lab" x="241" y="34">Rebuild</text>
+            <text class="ro-sub" x="241" y="82">CI sestaví</text>
+            <text class="ro-sub" x="241" y="96">odvozený image</text>
+            <circle class="ro-dot" cx="430" cy="56" r="8"/>
+            <text class="ro-lab" x="430" y="34">Test</text>
+            <text class="ro-sub" x="430" y="82">automatické testy,</text>
+            <text class="ro-sub" x="430" y="96">skenování, podpis</text>
+            <circle class="ro-dot" cx="619" cy="56" r="8"/>
+            <text class="ro-lab" x="619" y="34">Stage</text>
+            <text class="ro-sub" x="619" y="82">ověření na části</text>
+            <text class="ro-sub" x="619" y="96">prostředí</text>
+            <circle class="ro-dot" cx="808" cy="56" r="8"/>
+            <text class="ro-lab" x="808" y="34">Produkce</text>
+            <text class="ro-sub" x="808" y="82">rollout ve vlnách,</text>
+            <text class="ro-sub" x="808" y="96">v údržbových oknech</text>
+          </svg>
+        </div>
+
+        <div class="prose">
+          <p>Tato cesta se dá celá zautomatizovat a je pak rychlejší a průkaznější než ruční záplatování. Vyžaduje ale, aby ji někdo vlastnil a aby existovalo rozhodnutí, jak často se přestavuje a kdo povyšuje verzi ze stage do produkce.</p>
+        </div>
+
+        <h3>Kam patří co</h3>
+        <div class="prose">
+          <p>Rozdělení obsahu mezi image, instalaci a perzistentní data je nejdůležitější návrhové rozhodnutí. Chyba v něm se projeví až při první aktualizaci nebo při rollbacku.</p>
+        </div>
+
+        <div class="placing">
+          <div class="pcol img">
+            <h5>Do image</h5>
+            <span class="pw">stejné pro všechny servery role</span>
+            <ul>
+              <li>balíčky a aplikace</li>
+              <li>systemd jednotky</li>
+              <li>agenti (monitoring, EDR, záloha)</li>
+              <li>výchozí konfigurace</li>
+              <li>bezpečnostní profil</li>
+            </ul>
+          </div>
+          <div class="pcol inst">
+            <h5>Při instalaci</h5>
+            <span class="pw">kickstart, cloud-init, Ignition</span>
+            <ul>
+              <li>hostname</li>
+              <li>IP adresy a síť</li>
+              <li>certifikáty a klíče</li>
+              <li>registrační tokeny</li>
+              <li>rozdělení disků</li>
+            </ul>
+          </div>
+          <div class="pcol data">
+            <h5>Do /var</h5>
+            <span class="pw">přežije aktualizaci i rollback</span>
+            <ul>
+              <li>data aplikací a databáze</li>
+              <li>logy</li>
+              <li>domovské adresáře</li>
+              <li>cache a stavové soubory</li>
+              <li>to, co si služba zapisuje za běhu</li>
+            </ul>
+          </div>
+        </div>
+        <p class="fleetcap" style="text-align:left;max-width:var(--measure)">Tajemství a konfigurace konkrétního serveru do image nepatří — image je totiž sdílený všemi servery dané role a uložený v registry.</p>
+
+        <h3>Body k promyšlení</h3>
+        <div class="prep">
+          <div>
+            <h4><span class="n">01</span> Reboot u každé aktualizace</h4>
+            <p>Nová verze operačního systému se aktivuje rebootem, případně soft rebootem, pokud se nemění kernel. Je potřeba mít údržbová okna a plán, jak se restartují služby v clusteru. Režim download-only umožní stáhnout aktualizaci dopředu a aktivovat ji až v okně.</p>
+          </div>
+          <div>
+            <h4><span class="n">02</span> Automatické aktualizace jsou ve výchozím stavu zapnuté</h4>
+            <p>Timer <code>bootc-fetch-apply-updates</code> sám stáhne novou verzi, aplikuje ji a server rebootuje. V produkci se doporučuje ho vypnout přímo v <code>Containerfile</code> a rollout řídit centrálně přes Satellite, Ansible Automation Platform nebo CI/CD.</p>
+          </div>
+          <div>
+            <h4><span class="n">03</span> Registry se stává kritickou infrastrukturou</h4>
+            <p>Bez dostupné registry se nedá aktualizovat ani nasazovat. Je potřeba vyřešit vysokou dostupnost, zrcadlení pro oddělená a air-gapped prostředí, retenci tagů, aby zůstala dostupná verze pro návrat zpět, a distribuci pull secrets na servery.</p>
+          </div>
+          <div>
+            <h4><span class="n">04</span> Image pipeline potřebuje vlastníka</h4>
+            <p>Je potřeba určit, kdo spravuje <code>Containerfile</code>, jak často se přestavuje — základní image od Red Hatu se obnovuje nejméně jednou měsíčně — jak se nová verze testuje a kdo rozhoduje o povýšení ze stage do produkce.</p>
+          </div>
+          <div>
+            <h4><span class="n">05</span> Software třetích stran je potřeba ověřit</h4>
+            <p>Agenti pro monitoring, EDR, zálohování nebo správu hardwaru se musí zapéct do image a ověřit, že za běhu nezapisují do <code>/usr</code> nebo <code>/opt</code>. Některé RPM balíčky navíc obsahují scriptlety, které v prostředí image buildu selžou a je potřeba je upravit. Toto bývá nejčastější důvod, proč konkrétní serverová role do image mode zatím nemůže.</p>
+          </div>
+          <div>
+            <h4><span class="n">06</span> Migrace znamená reinstalaci</h4>
+            <p>Existující server nelze převést na image mode za provozu. Přechod je reinstalací, byť ji lze u cloudových instancí zautomatizovat nástrojem <code>system-reinstall-bootc</code>. Souběžný provoz package mode a image mode serverů je běžný a plně podporovaný stav, ne přechodná fáze.</p>
+          </div>
+          <div>
+            <h4><span class="n">07</span> Mění se náplň práce týmů</h4>
+            <p>Administrátoři se posouvají od konfigurace jednotlivých strojů ke správě image a pipeline. Ansible neztrácí smysl, ale těžiště se přesouvá od konfigurace operačního systému k orchestraci rolloutu a ověření stavu flotily.</p>
+          </div>
+        </div>
+
+        <div class="note">
+          <h4>Jak obvykle vypadá první krok</h4>
+          <p>Prakticky vyzkoušet image mode jde na jedné serverové roli — typicky na container hostu nebo na aplikaci typu appliance, kde je obsah dobře ohraničený. Celá smyčka se dá projít v řádu dnů: <code>Containerfile</code>, build v existující CI, uložení do vlastní registry, nasazení, aktualizace a návrat zpět. Užitečná měřítka jsou tři: jak dlouho trvá cesta od vydání errata k nasazení, jak konzistentní je výsledná flotila a jak dlouho trvá návrat k předchozí verzi.</p>
+        </div>
+      </section>
+
+      <div class="pagenav" id="pagenav"></div>
+    </div>
+  </div>
+</div>
+
+<dialog id="help">
+  <h3>Klávesové zkratky</h3>
+  <ul>
+    <li><kbd>→ / PgDn</kbd><span>Další kapitola</span></li>
+    <li><kbd>← / PgUp</kbd><span>Předchozí kapitola</span></li>
+    <li><kbd>1 – 7</kbd><span>Skok na kapitolu</span></li>
+    <li><kbd>Home</kbd><span>Úvodní strana</span></li>
+    <li><kbd>T</kbd><span>Světlý nebo tmavý režim</span></li>
+    <li><kbd>Esc</kbd><span>Zavřít</span></li>
+  </ul>
+  <p style="margin:16px 0 0"><button class="btn pri" id="helpclose">Zavřít</button></p>
+</dialog>
+
+<script>
+(function(){
+"use strict";
+
+var CH = [
+  {n:1, t:"Co je image mode",            d:"Základní myšlenka a co se mění"},
+  {n:2, t:"Package mode a image mode",   d:"Srovnání obou režimů"},
+  {n:3, t:"Build, deploy, manage",       d:"Životní cyklus v praxi"},
+  {n:4, t:"Jak to funguje uvnitř",       d:"Aktualizace, filesystem, /etc"},
+  {n:5, t:"Kde dává image mode smysl",   d:"Typické scénáře nasazení"},
+  {n:6, t:"Bezpečnost a compliance",     d:"Podpis, hardening, audit"},
+  {n:7, t:"Než se nasadí do produkce",   d:"Provozní dopady a příprava"}
+];
+var LAST = CH.length;
+
+/* ---------- Motiv ---------- */
+function readTheme(){
+  try{ return localStorage.getItem("rhelim-theme"); }catch(e){ return null; }
+}
+function applyTheme(v){
+  if(v) document.documentElement.setAttribute("data-theme", v);
+  else document.documentElement.removeAttribute("data-theme");
+}
+applyTheme(readTheme());
+
+document.getElementById("themebtn").addEventListener("click", function(){
+  var dark = getComputedStyle(document.body).backgroundColor;
+  var cur = document.documentElement.getAttribute("data-theme");
+  var next;
+  if(cur === "dark") next = "light";
+  else if(cur === "light") next = "dark";
+  else next = isDarkNow() ? "light" : "dark";
+  applyTheme(next);
+  try{ localStorage.setItem("rhelim-theme", next); }catch(e){}
+});
+function isDarkNow(){
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+/* ---------- Navigace ---------- */
+var toc = document.getElementById("toc");
+CH.forEach(function(c){
+  var li = document.createElement("li");
+  var b = document.createElement("button");
+  b.type = "button";
+  b.setAttribute("data-go", c.n);
+  b.innerHTML = '<span class="n">'+c.n+'</span><span>'+c.t+'</span>';
+  li.appendChild(b); toc.appendChild(li);
+});
+
+var tiles = document.getElementById("tiles");
+CH.forEach(function(c){
+  var b = document.createElement("button");
+  b.type = "button"; b.className = "tile"; b.setAttribute("data-go", c.n);
+  b.innerHTML = '<span class="tn">'+c.n+'</span><span class="tw"><span class="tt">'+c.t+'</span><span class="td">'+c.d+'</span></span>';
+  tiles.appendChild(b);
+});
+
+var current = 0;
+
+function show(n, push){
+  if(n < 0 || n > LAST) return;
+  current = n;
+
+  var secs = document.querySelectorAll(".chapter");
+  for(var i=0;i<secs.length;i++) secs[i].classList.remove("on");
+  document.getElementById("ch-"+n).classList.add("on");
+
+  var navs = toc.querySelectorAll("button");
+  for(var j=0;j<navs.length;j++){
+    navs[j].setAttribute("aria-current", String(Number(navs[j].getAttribute("data-go")) === n));
+  }
+
+  document.getElementById("progressfill").style.width = (n/LAST*100) + "%";
+  var cr = document.getElementById("crumb");
+  cr.textContent = n === 0 ? "Úvod" : ("‹ Úvod  ·  " + n + " / " + LAST);
+  cr.setAttribute("data-home", n === 0 ? "1" : "0");
+
+  buildPageNav(n);
+
+  if(push !== false){
+    var h = n === 0 ? "#uvod" : "#kapitola-" + n;
+    if(window.location.hash !== h) window.location.hash = h;
+  }
+  window.scrollTo(0,0);
+  closeMenu();
+  if(n === 1) playFlow();
+}
+
+function buildPageNav(n){
+  var pn = document.getElementById("pagenav");
+  pn.innerHTML = "";
+  if(n > 0){
+    var prev = document.createElement("button");
+    prev.type="button"; prev.className="btn"; prev.setAttribute("data-go", n-1);
+    prev.innerHTML = '<svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg><span>'+(n===1?"Úvod":CH[n-2].t)+'</span>';
+    pn.appendChild(prev);
+  } else { pn.appendChild(document.createElement("span")); }
+  if(n < LAST){
+    var next = document.createElement("button");
+    next.type="button"; next.className="btn pri"; next.setAttribute("data-go", n+1);
+    next.innerHTML = '<span>'+CH[n].t+'</span><svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>';
+    pn.appendChild(next);
+  } else { pn.appendChild(document.createElement("span")); }
+}
+
+document.addEventListener("click", function(e){
+  var t = e.target.closest ? e.target.closest("[data-go]") : null;
+  if(t){ show(Number(t.getAttribute("data-go"))); }
+});
+document.getElementById("homebtn").addEventListener("click", function(){ show(0); });
+document.getElementById("crumb").addEventListener("click", function(){ if(current !== 0) show(0); });
+
+function fromHash(){
+  var h = window.location.hash;
+  var m = /^#kapitola-(\d+)$/.exec(h);
+  if(m){ var n = Number(m[1]); if(n>=1 && n<=LAST){ show(n,false); return; } }
+  show(0,false);
+}
+window.addEventListener("hashchange", fromHash);
+
+/* ---------- Mobilní menu ---------- */
+var sidebar = document.getElementById("sidebar");
+var scrim = null;
+function openMenu(){
+  sidebar.classList.add("open");
+  if(!scrim){
+    scrim = document.createElement("div");
+    scrim.className = "scrim";
+    scrim.addEventListener("click", closeMenu);
+    document.body.appendChild(scrim);
+  }
+}
+function closeMenu(){
+  sidebar.classList.remove("open");
+  if(scrim){ scrim.remove(); scrim = null; }
+}
+document.getElementById("menubtn").addEventListener("click", function(){
+  if(sidebar.classList.contains("open")) closeMenu(); else openMenu();
+});
+
+/* ---------- Klávesy ---------- */
+var help = document.getElementById("help");
+document.getElementById("helpbtn").addEventListener("click", function(){ help.showModal(); });
+document.getElementById("helpclose").addEventListener("click", function(){ help.close(); });
+document.getElementById("printbtn").addEventListener("click", function(){ window.print(); });
+
+document.addEventListener("keydown", function(e){
+  var tag = e.target && e.target.tagName;
+  if(tag === "INPUT" || tag === "TEXTAREA") return;
+  if(help.open) return;
+  if(e.ctrlKey || e.metaKey || e.altKey) return;
+
+  if(e.key === "ArrowRight" || e.key === "PageDown"){ show(current+1); e.preventDefault(); }
+  else if(e.key === "ArrowLeft" || e.key === "PageUp"){ show(current-1); e.preventDefault(); }
+  else if(e.key === "Home"){ show(0); e.preventDefault(); }
+  else if(e.key === "End"){ show(LAST); e.preventDefault(); }
+  else if(e.key === "t" || e.key === "T"){ document.getElementById("themebtn").click(); }
+  else if(e.key === "?"){ help.showModal(); }
+  else if(e.key >= "1" && e.key <= "7"){ show(Number(e.key)); }
+});
+
+/* ---------- Kopírování kódu ---------- */
+document.addEventListener("click", function(e){
+  if(!e.target.classList || !e.target.classList.contains("copy")) return;
+  var btn = e.target;
+  var code = btn.parentNode.querySelector("code");
+  var txt = code ? code.textContent : "";
+  var done = function(){
+    var o = btn.textContent; btn.textContent = "Zkopírováno";
+    setTimeout(function(){ btn.textContent = o; }, 1600);
+  };
+  var fail = function(){
+    var o = btn.textContent; btn.textContent = "Označte a zkopírujte";
+    setTimeout(function(){ btn.textContent = o; }, 2200);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done).catch(function(){ legacy(txt) ? done() : fail(); });
+  } else {
+    legacy(txt) ? done() : fail();
+  }
+});
+function legacy(txt){
+  try{
+    var ta = document.createElement("textarea");
+    ta.value = txt; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    var ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  }catch(e){ return false; }
+}
+
+/* ---------- Taby ---------- */
+function wireTabs(id){
+  var bar = document.getElementById(id);
+  if(!bar) return;
+  bar.addEventListener("click", function(e){
+    var b = e.target.closest("button[data-p]");
+    if(!b) return;
+    var btns = bar.querySelectorAll("button[data-p]");
+    for(var i=0;i<btns.length;i++){
+      var on = btns[i] === b;
+      btns[i].setAttribute("aria-selected", String(on));
+      var p = document.getElementById(btns[i].getAttribute("data-p"));
+      if(p) p.classList.toggle("on", on);
+    }
+  });
+}
+wireTabs("tabs3"); wireTabs("tabs4");
+
+/* ---------- Kap. 1: animace toku ---------- */
+var flowTimers = [];
+function playFlow(){
+  flowTimers.forEach(clearTimeout); flowTimers = [];
+  var ids = ["fn1","fa1","fn2","fa2","fn3","fa3","fn4","fa4","fn5"];
+  ids.forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.classList.remove("lit");
+  });
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduce){ ids.forEach(function(id){ var el=document.getElementById(id); if(el) el.classList.add("lit"); }); return; }
+  ids.forEach(function(id, i){
+    flowTimers.push(setTimeout(function(){
+      var el = document.getElementById(id);
+      if(el) el.classList.add("lit");
+    }, 120 + i*330));
+  });
+}
+document.getElementById("flowplay").addEventListener("click", playFlow);
+
+/* ---------- Kap. 2: flotila ---------- */
+var FP_DRIFT = ["A1","B2","A3","C1"];
+var boxes = document.getElementById("boxes");
+function renderFleet(mode){
+  boxes.innerHTML = "";
+  for(var i=0;i<4;i++){
+    var d = document.createElement("div");
+    d.className = "srv";
+    var fp = mode === "drift" ? FP_DRIFT[i] : "sha256:9f2c…";
+    d.innerHTML =
+      '<div class="unit"><svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg></div>'+
+      '<div class="id">srv-0'+(i+1)+'</div>'+
+      '<div class="fp">'+fp+'</div>';
+    boxes.appendChild(d);
+  }
+}
+function setMode(m){
+  var isImg = (m === "img");
+  document.getElementById("modesw").classList.toggle("on", isImg);
+  document.getElementById("lab-pkg").setAttribute("aria-pressed", String(!isImg));
+  document.getElementById("lab-img").setAttribute("aria-pressed", String(isImg));
+  document.getElementById("fleet").className = "fleet " + (isImg ? "unified" : "drift");
+  document.getElementById("src-t").textContent = isImg ? "OCI container registry" : "RPM repozitáře";
+  document.getElementById("src-s").textContent = isImg ? "Týž image pro celou roli" : "Každý server si bere balíčky sám";
+  document.getElementById("fleetcap").textContent = isImg
+    ? "Všechny servery běží na stejném digestu. Odpověď na otázku, co na nich je, dá jediný dotaz do registry nebo do Satellite."
+    : "Servery byly nasazené ze stejného zadání, ale po několika kolech záplatování a ručních zásahů se jejich stav rozchází. Zjistit, čím přesně se liší, znamená každý z nich prozkoumat.";
+  document.getElementById("th-pkg").classList.toggle("hl", !isImg);
+  document.getElementById("th-img").classList.toggle("hl", isImg);
+  renderFleet(isImg ? "img" : "drift");
+}
+document.getElementById("modesw").addEventListener("click", function(){
+  setMode(this.classList.contains("on") ? "pkg" : "img");
+});
+document.getElementById("lab-pkg").addEventListener("click", function(){ setMode("pkg"); });
+document.getElementById("lab-img").addEventListener("click", function(){ setMode("img"); });
+setMode("pkg");
+
+/* ---------- Kap. 4a: simulátor ---------- */
+var sim = { reg:1, booted:1, staged:null, stagedDL:false, rollback:null, pending:false, timer:false };
+
+function log(msg, kind){
+  var box = document.getElementById("simlog");
+  var d = document.createElement("div");
+  if(kind) d.className = kind;
+  d.textContent = "› " + msg;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+
+function paint(){
+  document.getElementById("v-reg").textContent = "v" + sim.reg;
+
+  var sb = document.getElementById("slot-b");
+  sb.classList.remove("empty");
+  document.getElementById("v-b").textContent = "v" + sim.booted;
+
+  var ss = document.getElementById("slot-s");
+  var vs = document.getElementById("v-s");
+  if(sim.staged){
+    ss.classList.remove("empty");
+    vs.innerHTML = "v" + sim.staged + (sim.stagedDL ? '<span class="dlflag">download-only</span>' : "");
+  } else {
+    ss.classList.add("empty");
+    vs.textContent = "—";
+  }
+
+  var sr = document.getElementById("slot-r");
+  var vr = document.getElementById("v-r");
+  if(sim.rollback){
+    sr.classList.remove("empty");
+    vr.innerHTML = "v" + sim.rollback + (sim.pending ? '<span class="dlflag">zařazeno na příští boot</span>' : "");
+  } else {
+    sr.classList.add("empty");
+    vr.textContent = "—";
+  }
+
+  var newer = sim.reg > sim.booted && sim.reg !== sim.staged;
+  document.getElementById("a-up").disabled  = !(sim.reg > sim.booted) && !(sim.staged && sim.stagedDL);
+  document.getElementById("a-dl").disabled  = !newer;
+  document.getElementById("a-rb").disabled  = !sim.rollback || sim.pending;
+  document.getElementById("a-reb").disabled = false;
+  document.getElementById("a-tick").hidden  = !sim.timer;
+}
+
+document.getElementById("a-pub").addEventListener("click", function(){
+  sim.reg++;
+  log("Do registry byla publikována verze v" + sim.reg + ". Na serveru se zatím nic nezměnilo.");
+  paint();
+});
+
+document.getElementById("a-up").addEventListener("click", function(){
+  if(sim.staged && sim.stagedDL && sim.staged >= sim.reg){
+    sim.stagedDL = false;
+    log("bootc upgrade: staged verze v" + sim.staged + " odemčena, aktivuje se při příštím rebootu.", "okln");
+  } else if(sim.reg > sim.booted){
+    sim.staged = sim.reg; sim.stagedDL = false;
+    log("bootc upgrade: stažena verze v" + sim.staged + " a připravena jako staged. Běžící systém se nezměnil.");
+  } else {
+    log("bootc upgrade: v registry není novější verze.");
+  }
+  paint();
+});
+
+document.getElementById("a-dl").addEventListener("click", function(){
+  sim.staged = sim.reg; sim.stagedDL = true;
+  log("bootc upgrade --download-only: verze v" + sim.staged + " stažena, ale zamčena. Reboot ji sám neaktivuje.");
+  paint();
+});
+
+document.getElementById("a-rb").addEventListener("click", function(){
+  if(!sim.rollback){ log("bootc rollback: není k dispozici předchozí verze."); paint(); return; }
+  if(sim.staged){
+    log("bootc rollback: připravená verze v" + sim.staged + " byla zahozena.");
+    sim.staged = null; sim.stagedDL = false;
+  }
+  sim.pending = true;
+  log("bootc rollback: na příští boot zařazena verze v" + sim.rollback + ". Projeví se až po rebootu.");
+  paint();
+});
+
+document.getElementById("a-reb").addEventListener("click", function(){ doReboot(); });
+
+function doReboot(){
+  if(sim.pending){
+    var old = sim.booted;
+    sim.booted = sim.rollback;
+    sim.rollback = old;
+    sim.pending = false;
+    sim.staged = null; sim.stagedDL = false;
+    log("Reboot: proveden návrat zpět. Běží v" + sim.booted + ", vrátit se lze na v" + sim.rollback + ".", "okln");
+    if(sim.timer && sim.reg > sim.booted){
+      log("Pozor: timer je zapnutý a v registry je v" + sim.reg + ". Do 1 až 3 hodin server znovu povýší a rebootuje.", "warnln");
+    }
+  } else if(sim.staged && sim.stagedDL){
+    log("Reboot: staged verze v" + sim.staged + " je download-only, zůstává neaktivní. Běží dál v" + sim.booted + ".");
+  } else if(sim.staged){
+    sim.rollback = sim.booted;
+    sim.booted = sim.staged;
+    sim.staged = null; sim.stagedDL = false;
+    log("Reboot: aktivována verze v" + sim.booted + ". Vrátit se lze na v" + sim.rollback + ".", "okln");
+  } else {
+    log("Reboot: nic nebylo připraveno, systém nabootoval do v" + sim.booted + ".");
+  }
+  paint();
+}
+
+document.getElementById("a-tick").addEventListener("click", function(){
+  if(!sim.timer) return;
+  if(sim.reg > sim.booted){
+    log("[timer] Nalezena verze v" + sim.reg + " — stahuji, aplikuji a rebootuji.", "warnln");
+    sim.staged = sim.reg; sim.stagedDL = false; sim.pending = false;
+    doReboot();
+  } else {
+    log("[timer] Kontrola registry: server běží na nejnovější verzi, nic se neděje.");
+    paint();
+  }
+});
+
+document.getElementById("timersw").addEventListener("click", function(){
+  sim.timer = !sim.timer;
+  this.classList.toggle("on", sim.timer);
+  this.setAttribute("aria-pressed", String(sim.timer));
+  document.getElementById("timerwarn").hidden = !sim.timer;
+  log(sim.timer
+    ? "Automatický timer zapnut. Server se bude aktualizovat a rebootovat sám."
+    : "Automatický timer vypnut. Aktualizace probíhají jen na vyžádání.");
+  paint();
+});
+
+document.getElementById("a-res").addEventListener("click", function(){
+  sim = { reg:1, booted:1, staged:null, stagedDL:false, rollback:null, pending:false, timer:sim.timer };
+  document.getElementById("simlog").innerHTML = "";
+  log("Výchozí stav: server běží na v1, v registry je v1.");
+  paint();
+});
+
+log("Výchozí stav: server běží na v1, v registry je v1.");
+paint();
+
+/* ---------- Kap. 4b: filesystem ---------- */
+var FS = {
+  root:{ t:"/ a /usr", tag:"t-ro", lab:"read-only",
+    run:"Read-only, zajištěno technologií composefs.",
+    upg:"Nahrazeno obsahem nového image.",
+    note:"Samotný operační systém. Nelze změnit jinak než nasazením nového image, a to je záměr — právě odtud pochází záruka, že jsou servery stejné." },
+  opt:{ t:"/opt a /usr/local", tag:"t-ro", lab:"read-only",
+    run:"Read-only.",
+    upg:"Nahrazeno obsahem nového image.",
+    note:"Zapisovatelné pouze při sestavení image. Software třetích stran, který si sem chce za běhu zapisovat, je potřeba přesměrovat do /var symbolickým odkazem nebo přes BindPaths." },
+  etc:{ t:"/etc", tag:"t-mg", lab:"3-way merge",
+    run:"Read-write, perzistentní.",
+    upg:"Třícestný merge: nové výchozí hodnoty z image plus zachované lokální změny.",
+    note:"Sem patří konfigurace konkrétního serveru — hostname, síť, klíče. Pozor: změny provedené po aktualizaci se při návratu zpět nezachovají." },
+  var:{ t:"/var", tag:"t-rw", lab:"perzistentní",
+    run:"Read-write, perzistentní.",
+    upg:"Beze změny.",
+    note:"Data, logy, databáze a domovské adresáře. Aktualizace ani rollback se jich nedotknou. Obsah /var z image se uplatní pouze při první instalaci." }
+};
+var fsList = document.querySelector(".fslist");
+function fsShow(key){
+  var btns = fsList.querySelectorAll("button");
+  for(var i=0;i<btns.length;i++){
+    btns[i].setAttribute("aria-selected", String(btns[i].getAttribute("data-fs") === key));
+  }
+  var d = FS[key];
+  document.getElementById("fsdetail").innerHTML =
+    '<h4><code>'+d.t+'</code> <span class="tag '+d.tag+'">'+d.lab+'</span></h4>'+
+    '<table class="tbl">'+
+      '<tr><td>Za běhu</td><td>'+d.run+'</td></tr>'+
+      '<tr><td>Při aktualizaci</td><td>'+d.upg+'</td></tr>'+
+      '<tr><td>Poznámka</td><td>'+d.note+'</td></tr>'+
+    '</table>';
+}
+fsList.addEventListener("click", function(e){
+  var b = e.target.closest("button[data-fs]");
+  if(b) fsShow(b.getAttribute("data-fs"));
+});
+fsShow("root");
+
+/* ---------- Start ---------- */
+fromHash();
+
+/* Před tiskem rozbalit všechny taby */
+window.addEventListener("beforeprint", function(){
+  var ps = document.querySelectorAll(".panel");
+  for(var i=0;i<ps.length;i++) ps[i].classList.add("on");
+});
+
+})();
+</script>
+</body>
+</html>
